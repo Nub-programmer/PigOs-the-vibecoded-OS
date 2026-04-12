@@ -221,10 +221,15 @@ static void net_init(void){
         detected_nic = NIC_NONE;
         return;
     }
+#if LWIP_NETIF_STATUS_CALLBACK
     netif_set_status_callback(&pig_netif, net_status_callback);
+#endif
     netif_set_default(&pig_netif);
     netif_set_up(&pig_netif);
     netif_set_link_up(&pig_netif);
+#if !LWIP_NETIF_STATUS_CALLBACK
+    net_status_callback(&pig_netif);
+#endif
     
     vset(C_LCYAN,C_BLACK);
     vpln("lwip: stack initialized");
