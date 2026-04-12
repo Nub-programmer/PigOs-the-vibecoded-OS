@@ -5,8 +5,6 @@
 #include "drivers/vga/vga.h"
 #include "lwip/port/arch/cc.h"
 #include "lwip/port/lwipopts.h"
-#include "lwip/port/netif/rtl8139.h"
-#include "lwip/port/netif/e1000.h"
 #include "lwip/src/include/lwip/init.h"
 #include "lwip/src/include/lwip/netif.h"
 #include "lwip/src/include/lwip/ip4_addr.h"
@@ -41,6 +39,24 @@ static int detected_nic = NIC_NONE;
 #include "lwip/port/netif/e1000.h"
 #include "lwip/port/netif/virtio.h"
 
+#if defined(CONFIG_NET_RTL8139) && CONFIG_NET_RTL8139
+#define NET_CFG_RTL 1
+#else
+#define NET_CFG_RTL 0
+#endif
+
+#if defined(CONFIG_NET_E1000) && CONFIG_NET_E1000
+#define NET_CFG_E1000 1
+#else
+#define NET_CFG_E1000 0
+#endif
+
+#if defined(CONFIG_NET_VIRTIO) && CONFIG_NET_VIRTIO
+#define NET_CFG_VIRTIO 1
+#else
+#define NET_CFG_VIRTIO 0
+#endif
+
 static const char* nic_name(void){
     switch(detected_nic){
         case NIC_RTL:    return "RTL8139";
@@ -54,8 +70,8 @@ static int net_hw_ok = 0;
 
 // Detect which NIC is present on PCI
 static void net_detect_nic(void){
-    // Check VirtIO first (MMIO, not PCI config space)
-    if(!virtio_mmio){
+    if(NET_CFG_VIRTIO && !virtio_mmio){
+        // Check VirtIO first (MMIO, not PCI config space)
         // Try to find VirtIO net device
         for(int i = 0; i < 32; i++){
             volatile uint32_t *base = (volatile uint32_t *)(0x0a000000 + i * 0x200);
@@ -71,11 +87,11 @@ static void net_detect_nic(void){
     // Scan PCI bus for known NICs
     for(int b=0;b<4;b++)for(int d=0;d<32;d++){
         uint32_t id=pci_r32(b,d,0,0);
-        if(id==0x813910EC){ detected_nic = NIC_RTL; return; }
-        if(id==0x10088086 || id==0x10098086 || id==0x10008086 ||
+        if(NET_CFG_RTL && id==0x813910EC){ detected_nic = NIC_RTL; return; }
+        if(NET_CFG_E1000 && (id==0x10088086 || id==0x10098086 || id==0x10008086 ||
            id==0x10018086 || id==0x10048086 || id==0x100E8086 ||
            id==0x100F8086 || id==0x10118086 || id==0x10158086 ||
-           id==0x10198086 || id==0x101D8086){
+           id==0x10198086 || id==0x101D8086)){
             detected_nic = NIC_E1000; return;
         }
     }
@@ -83,6 +99,7 @@ static void net_detect_nic(void){
 
 // Unified net_hw_init - calls the right driver
 static int net_hw_init(void){
+    net_hw_ok = 0;
     switch(detected_nic){
         case NIC_VIRTIO:
             if(virtio_hw_init()){ net_hw_ok=1; return 1; }
@@ -115,6 +132,19 @@ static uint32_t net_my_ip=0, net_gw_ip=0, net_mask=0;
 static uint8_t*net_mac_ptr=rtl_mac;
 static char netif_name[16]="";  // Auto-detected interface name (e.g. "enp0s3")
 static int netif_bus=0, netif_slot=0;  // PCI bus/slot for udev naming
+
+static void net_set_default_ipv4(void){
+    ip4_addr_t ip,gw,nm;
+    IP4_ADDR(&ip,10,0,2,15);
+    IP4_ADDR(&gw,10,0,2,2);
+    IP4_ADDR(&nm,255,255,255,0);
+    netif_set_ipaddr(&pig_netif,&ip);
+    netif_set_gw(&pig_netif,&gw);
+    netif_set_netmask(&pig_netif,&nm);
+    net_my_ip=0x0F02000A;
+    net_gw_ip=0x0202000A;
+    net_mask=0x00FFFFFF;
+}
 
 // udev-like naming: detect interface name from PCI topology
 // en = Ethernet, p<bus>s<slot> = PCI bus/slot
@@ -170,21 +200,28 @@ static void net_init(void){
     }
     netif_detect_name();
     lwip_init();
+    struct netif* added = 0;
     switch(detected_nic){
         case NIC_VIRTIO:
-            netif_add(&pig_netif, IP_ADDR_ANY, IP_ADDR_ANY, IP_ADDR_ANY, NULL, virtio_init, ethernet_input);
+            added = netif_add(&pig_netif, IP_ADDR_ANY, IP_ADDR_ANY, IP_ADDR_ANY, NULL, virtio_init, ethernet_input);
             net_mac_ptr = virtio_mac;
             break;
         case NIC_E1000:
-            netif_add(&pig_netif, IP_ADDR_ANY, IP_ADDR_ANY, IP_ADDR_ANY, NULL, e1000_init, ethernet_input);
+            added = netif_add(&pig_netif, IP_ADDR_ANY, IP_ADDR_ANY, IP_ADDR_ANY, NULL, e1000_init, ethernet_input);
             net_mac_ptr = e1000_mac;
             break;
         case NIC_RTL:
         default:
-            netif_add(&pig_netif, IP_ADDR_ANY, IP_ADDR_ANY, IP_ADDR_ANY, NULL, rtl_init, pig_input);
+            added = netif_add(&pig_netif, IP_ADDR_ANY, IP_ADDR_ANY, IP_ADDR_ANY, NULL, rtl_init, pig_input);
             net_mac_ptr = rtl_mac;
             break;
     }
+    if(!added){
+        vpln("lwip: netif_add failed");
+        detected_nic = NIC_NONE;
+        return;
+    }
+    netif_set_status_callback(&pig_netif, net_status_callback);
     netif_set_default(&pig_netif);
     netif_set_up(&pig_netif);
     netif_set_link_up(&pig_netif);
@@ -206,10 +243,10 @@ static int eth0_up(void){
     switch(detected_nic){
     case NIC_VIRTIO:
         vpln("eth0: VirtIO-Net already configured via net_init");
+        net_set_default_ipv4();
+        netif_set_up(&pig_netif);
+        netif_set_link_up(&pig_netif);
         net_ok=1;
-        net_my_ip=0x0F02000A;
-        net_gw_ip=0x0202000A;
-        net_mask=0x00FFFFFF;
         vset(C_LGREEN,C_BLACK);
         vpln("eth0: UP - 10.0.2.15/24 gw 10.0.2.2");
         vpln("");vrst();
@@ -217,10 +254,10 @@ static int eth0_up(void){
 
     case NIC_E1000:
         vpln("eth0: e1000 already configured via net_init");
+        net_set_default_ipv4();
+        netif_set_up(&pig_netif);
+        netif_set_link_up(&pig_netif);
         net_ok=1;
-        net_my_ip=0x0F02000A;
-        net_gw_ip=0x0202000A;
-        net_mask=0x00FFFFFF;
         vset(C_LGREEN,C_BLACK);
         vpln("eth0: UP - 10.0.2.15/24 gw 10.0.2.2");
         vpln("");vrst();
@@ -274,21 +311,12 @@ static int eth0_up(void){
     vrst();
 
     vpln("eth0: step 7/8 - Configuring IP 10.0.2.15/24 gw 10.0.2.2...");
-    ip4_addr_t ip,gw,nm;
-    IP4_ADDR(&ip,10,0,2,15);
-    IP4_ADDR(&gw,10,0,2,2);
-    IP4_ADDR(&nm,255,255,255,0);
-    netif_set_ipaddr(&pig_netif,&ip);
-    netif_set_gw(&pig_netif,&gw);
-    netif_set_netmask(&pig_netif,&nm);
+    net_set_default_ipv4();
 
     vpln("eth0: step 8/8 - Bringing interface UP...");
     netif_set_up(&pig_netif);
     netif_set_link_up(&pig_netif);
     net_ok=1;
-    net_my_ip=0x0F02000A;
-    net_gw_ip=0x0202000A;
-    net_mask=0x00FFFFFF;
 
     // Clear RX buffer
     for(volatile int i=0;i<RTL_RX_SZ;i+=4) *(volatile uint32_t*)(RTL_RX_PHYS+i)=0;
@@ -323,27 +351,9 @@ static void net_poll(void){
         case NIC_VIRTIO:
             virtio_input(&pig_netif);
             break;
-        case NIC_E1000: {
-            // e1000_input needs pbufs - poll RX descriptors and feed them
-            struct e1000_rx_desc* rxd=(struct e1000_rx_desc*)(0x03000000);
-            for(int pkt=0; pkt<16; pkt++){
-                int idx=e1000_rx_idx;
-                if(!(rxd[idx].status & 0x01)) break;
-                uint16_t len=rxd[idx].length;
-                if(len>0 && len<=1518){
-                    struct pbuf* pb = pbuf_alloc(PBUF_LINK, len, PBUF_POOL);
-                    if(pb){
-                        uint8_t* data = (uint8_t*)(0x03000000 + idx*16 + 16);
-                        for(int i=0;i<len;i++) ((uint8_t*)pb->payload)[i]=data[i];
-                        ethernet_input(pb, &pig_netif);
-                    }
-                }
-                rxd[idx].status = 0;
-                e1000_write32(0x3808, (e1000_rx_idx+1)&0x1F);
-                e1000_rx_idx = (e1000_rx_idx + 1) & 0x1F;
-            }
+        case NIC_E1000:
+            e1000_poll(&pig_netif);
             break;
-        }
         case NIC_RTL:
         default:
             rtl_input(&pig_netif);
