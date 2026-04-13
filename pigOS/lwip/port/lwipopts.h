@@ -22,7 +22,7 @@
 #define TCP_QUEUE_OOSEQ                 0
 
 #define MEM_ALIGNMENT                   4
-#define MEM_SIZE                        16384
+#define MEM_SIZE                        (32 * 1024)
 #define MEMP_NUM_PBUF                   32
 #define MEMP_NUM_UDP_PCB                4
 #define MEMP_NUM_TCP_PCB                8

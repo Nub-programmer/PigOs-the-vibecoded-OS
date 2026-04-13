@@ -295,10 +295,13 @@ static void net_init(void){
 // DNS resolver for NO_SYS mode
 static volatile int dns_done = 0;
 static ip_addr_t dns_result;
+static ip_addr_t dns_retry_ip;
+static volatile int dns_retry_armed = 0;
 static void dns_cb(const char* name, const ip_addr_t* ipaddr, void* arg) {
     (void)arg;
     if(ipaddr){
         dns_result = *ipaddr;
+        dns_retry_armed = 0;
         uint32_t addr = ip4_addr_get_u32(ip_2_ip4(ipaddr));
         char b[8];
         vps("dns: callback ");
@@ -309,10 +312,32 @@ static void dns_cb(const char* name, const ip_addr_t* ipaddr, void* arg) {
         kia((addr >> 8) & 0xFF, b); vps(b); vpc('.');
         kia(addr & 0xFF, b); vps(b); vpln("");
     } else {
-        IP_ADDR4(&dns_result, 0, 0, 0, 0);
-        vps("dns: callback ");
-        vps(name ? name : "?");
-        vpln(" -> no address");
+        // Retry once in case callback raced with cache/update timing.
+        if(!dns_retry_armed && name && *name){
+            err_t re = dns_gethostbyname(name, &dns_retry_ip, dns_cb, NULL);
+            if(re == ERR_OK){
+                dns_result = dns_retry_ip;
+                vps("dns: callback ");
+                vps(name);
+                vpln(" -> recovered from retry");
+            } else if(re == ERR_INPROGRESS){
+                dns_retry_armed = 1;
+                vps("dns: callback ");
+                vps(name);
+                vpln(" -> no address, retrying");
+                return;
+            } else {
+                IP_ADDR4(&dns_result, 0, 0, 0, 0);
+                vps("dns: callback ");
+                vps(name);
+                vpln(" -> retry failed");
+            }
+        } else {
+            IP_ADDR4(&dns_result, 0, 0, 0, 0);
+            vps("dns: callback ");
+            vps(name ? name : "?");
+            vpln(" -> no address");
+        }
     }
     dns_done = 1;
 }
@@ -320,6 +345,7 @@ static void dns_cb(const char* name, const ip_addr_t* ipaddr, void* arg) {
 // Returns 0 on success, -1 on failure. Result in out_ip.
 int resolve_hostname(const char* name, ip_addr_t* out_ip) {
     dns_done = 0;
+    dns_retry_armed = 0;
     err_t err = dns_gethostbyname(name, &dns_result, dns_cb, NULL);
     if(err == ERR_OK) {
         *out_ip = dns_result;
@@ -477,7 +503,7 @@ static void net_debug_arp_gateway(void){
 // Unified network poll - dispatches to the detected driver
 void net_poll(void){
     // Explicit loopback pump for NO_SYS mode: process lo queue every tick.
-    if(lo_netif.loop_first != NULL){
+    while(lo_netif.loop_first != NULL){
         netif_poll(&lo_netif);
     }
 
