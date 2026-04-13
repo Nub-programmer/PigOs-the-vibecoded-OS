@@ -1,3 +1,6 @@
+#include "lwip/dns.h"
+#include "lwip/udp.h"
+#include "lwip/ip_addr.h"
 #include <stdint.h>
 #include "kernel/autoconf.h"
 
@@ -40,6 +43,7 @@ extern int kb_get(void);
 #include "../shell/shell.h"
 #include "../wm/wm.h"
 
+
 struct idt_entry {
     uint16_t offset_low;
     uint16_t selector;
@@ -53,7 +57,7 @@ struct idt_entry {
 struct idt_ptr {
     uint16_t limit;
     uint64_t base;
-} __attribute__((packed));
+} __attribute__((packed, aligned(8)));
 
 struct interrupt_frame {
     uint64_t rip;
@@ -64,7 +68,7 @@ struct interrupt_frame {
 } __attribute__((packed));
 
 static struct idt_entry kernel_idt[256] __attribute__((aligned(16)));
-static struct idt_ptr kernel_idtr __attribute__((packed));
+static struct idt_ptr kernel_idtr;
 
 static void idt_set_gate(int vec, void (*handler)(void), uint8_t type_attr){
     uint64_t addr = (uint64_t)(uintptr_t)handler;
