@@ -22,6 +22,7 @@
 #include "lwip/src/include/lwip/ip.h"
 #include "lwip/src/include/lwip/raw.h"
 #include <stdint.h>
+#include <stddef.h>
 
 #define NET_LOG_INFO(msg) LOG_NET(msg)
 #define NET_LOG_ERROR(msg) LOG_ERROR(msg)
