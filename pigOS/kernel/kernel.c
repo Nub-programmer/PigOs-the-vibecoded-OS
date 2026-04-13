@@ -34,6 +34,8 @@
 #endif
 
 extern void sh_dispatch(const char*);
+extern int kb_avail(void);
+extern int kb_get(void);
 
 #include "../shell/shell.h"
 #include "../wm/wm.h"
@@ -75,8 +77,8 @@ static void idt_set_gate(int vec, void (*handler)(void), uint8_t type_attr){
     kernel_idt[vec].zero = 0;
 }
 
-static void kernel_exception_noerr(struct interrupt_frame* frame) __attribute__((interrupt));
-static void kernel_exception_err(struct interrupt_frame* frame, uint64_t error_code) __attribute__((interrupt));
+static void kernel_exception_noerr(struct interrupt_frame* frame) __attribute__((interrupt, target("no-sse")));
+static void kernel_exception_err(struct interrupt_frame* frame, uint64_t error_code) __attribute__((interrupt, target("no-sse")));
 
 static void kernel_exception_noerr(struct interrupt_frame* frame){
     (void)frame;
@@ -208,7 +210,7 @@ void kernel_main(uint32_t magic,uint32_t mb_info){
     vstr(20,4,  COL(C_YELLOW,C_BLUE),  " |  ____|/ |     /    ||  _ \\|  ___|");
     vstr(20,5,  COL(C_LRED,C_BLUE),    " | |_   | |    /  /| || |_) | |_");
     vstr(20,6,  COL(C_LRED,C_BLUE),    " |  _|  | |___/  /_| ||  _ <|  _|");
-    vstr(20,7,  COL(C_RED,C_BLUE),     " |_|    |____-\_____/ |_| \\_\\_|");
+    vstr(20,7,  COL(C_RED,C_BLUE),     " |_|    |____-\\_____/ |_| \\_\\_|");
 
     // Flame chars on the left of the logo
     vat('^', COL(C_YELLOW,C_BLUE), 18, 3);
@@ -278,8 +280,6 @@ void kernel_main(uint32_t magic,uint32_t mb_info){
     vstr(28,21,COL(C_LGREEN,C_BLUE),"  pigOS v1.0 loaded - starting...  ");
 
     // Drain keyboard buffer to prevent issues after splash
-    extern int kb_avail(void);
-    extern int kb_get(void);
     for(volatile int i = 0; i < 100000; i++);
     while(kb_avail()) kb_get();
 

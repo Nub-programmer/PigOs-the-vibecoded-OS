@@ -7,7 +7,7 @@ LD   = ld
 -include kernel/.config
 
 CFLAGS = -m64 -ffreestanding -fno-builtin -fno-stack-protector \
-         -fno-pic -mno-red-zone -mno-mmx -mno-sse -mno-sse2 \
+		 -fno-pic -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-80387 \
          -Wall -Wextra -O2 -std=gnu99 \
          -Wno-unused-parameter -Wno-unused-function \
          -Wno-unused-variable -Wno-type-limits \
