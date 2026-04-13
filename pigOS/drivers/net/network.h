@@ -442,19 +442,20 @@ static void net_poll(void){
                 break;
         }
     }
-    // Always process loopback input every tick (NO_SYS mode)
-#if LWIP_NETIF_LOOPBACK && !LWIP_NETIF_LOOPBACK_MULTITHREADING
-    netif_poll_all();
-#else
-    // Manual loopback feed for NO_SYS mode
+
+    // Explicitly process loopback packets every tick
     struct pbuf* q;
     while ((q = lo_netif.loop_first) != NULL) {
         lo_netif.loop_first = q->next;
         q->next = NULL;
-        ip_input(q, &lo_netif);
+        if (lo_netif.input) {
+            lo_netif.input(q, &lo_netif);
+        } else {
+            pbuf_free(q);
+        }
     }
     lo_netif.loop_last = NULL;
-#endif
+
     net_debug_arp_gateway();
 }
 
