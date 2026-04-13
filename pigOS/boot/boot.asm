@@ -48,9 +48,10 @@ _start:
     mov esp, stack_top
 
     ; Clear page tables
+    cld
     mov edi, pml4_table
     xor eax, eax
-    mov ecx, (3*4096)/4
+    mov ecx, (6*4096)/4
     rep stosd
 
     ; PML4[0] -> PDPT
