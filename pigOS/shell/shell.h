@@ -1,17 +1,7 @@
-#include <stddef.h>
-
-// Simple integer to ASCII (base 10, no sign)
-static void kitoa(int val, char* out) {
-    char buf[12];
-    int i = 0;
-    if(val == 0) { out[0] = '0'; out[1] = 0; return; }
-    while(val > 0 && i < 11) { buf[i++] = '0' + (val % 10); val /= 10; }
-    int j = 0;
-    while(i > 0) out[j++] = buf[--i];
-    out[j] = 0;
-}
 #pragma once
 // larpshell v5.9.3 - Based on lash (github.com/usr-undeleted/lash)
+
+#include <stddef.h>
 #include "../drivers/vga/vga.h"
 #include "../drivers/ps2/ps2.h"
 #include "../kernel/mem.h"
@@ -98,7 +88,7 @@ static void sh_expand(const char*in,char*out,int outsz){
         if(in[i]=='$'){
             i++;
             char vn[32]; int vi=0;
-            while(in[i]&&(in[i]>='A'&&in[i]<='Z'||in[i]>='a'&&in[i]<='z'||in[i]>='0'&&in[i]<='9'||in[i]=='_')&&vi<31)
+            while(in[i] && ((in[i]>='A' && in[i]<='Z') || (in[i]>='a' && in[i]<='z') || (in[i]>='0' && in[i]<='9') || (in[i]=='_')) && vi < 31)
                 vn[vi++]=in[i++];
             vn[vi]=0;
             const char*val=sh_var_get(vn);
