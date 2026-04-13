@@ -108,6 +108,17 @@ static void sh_expand(const char*in,char*out,int outsz){
     out[oi]=0;
 }
 
+// Simple integer to ASCII (base 10, no sign)
+static void kitoa(int val, char* out) {
+    char buf[12];
+    int i = 0;
+    if(val == 0) { out[0] = '0'; out[1] = 0; return; }
+    while(val > 0 && i < 11) { buf[i++] = '0' + (val % 10); val /= 10; }
+    int j = 0;
+    while(i > 0) out[j++] = buf[--i];
+    out[j] = 0;
+}
+
 const char* CMDS[]={
     "help","about","pigfetch","uname","hostname","uptime","date",
     "dmesg","clear","cls","color","reboot","halt","shutdown","poweroff","panic","version",
