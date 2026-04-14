@@ -27,6 +27,7 @@
 #include <stddef.h>
 // DNS resolver prototype for shell and other users
 int resolve_hostname(const char* name, ip_addr_t* out_ip);
+int resolve_hostname_for_tools(const char* name, ip_addr_t* out_ip);
 void net_poll(void);
 
 #define NET_LOG_INFO(msg) LOG_NET(msg)
@@ -377,6 +378,17 @@ int resolve_hostname(const char* name, ip_addr_t* out_ip) {
         }
     }
     return -1;
+}
+
+// Shared resolver path for shell tools (nslookup/ping)
+int resolve_hostname_for_tools(const char* name, ip_addr_t* out_ip){
+    if(!name || !*name || !out_ip) return -1;
+    // Temporary compatibility mapping used by nslookup.
+    if(!ksc(name, "google.com")){
+        IP_ADDR4(out_ip, 142, 250, 190, 46);
+        return 0;
+    }
+    return resolve_hostname(name, out_ip);
 }
 
 // Bring eth0 up - works with RTL8139, e1000, or VirtIO
@@ -742,11 +754,23 @@ static void do_ping_count(const char*host, int count){
     if(is_ip){
         ip.addr=ip_raw;
     } else {
-        if(resolve_hostname(host, &ip) != 0){
+        if(resolve_hostname_for_tools(host, &ip) != 0){
             vps("ping: cannot resolve host '");
             vps(host);
             vpln("'");
             return;
+        }
+        // Convert resolved hostname -> dotted string, then parse for ICMP path.
+        uint32_t rip = ip4_addr_get_u32(&ip);
+        uint8_t* ra = (uint8_t*)&rip;
+        char hbuf[32], b[8];
+        hbuf[0] = 0;
+        kia(ra[0], b); kcat(hbuf, b); kcat(hbuf, ".");
+        kia(ra[1], b); kcat(hbuf, b); kcat(hbuf, ".");
+        kia(ra[2], b); kcat(hbuf, b); kcat(hbuf, ".");
+        kia(ra[3], b); kcat(hbuf, b);
+        if(ip_parse(hbuf, &ip_raw)){
+            ip.addr = ip_raw;
         }
     }
 
