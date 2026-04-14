@@ -28,6 +28,7 @@
 // DNS resolver prototype for shell and other users
 int resolve_hostname(const char* name, ip_addr_t* out_ip);
 int resolve_hostname_for_tools(const char* name, ip_addr_t* out_ip);
+int resolve_hostname_probe_for_tools(const char* name);
 void net_poll(void);
 
 #define NET_LOG_INFO(msg) LOG_NET(msg)
@@ -389,6 +390,11 @@ int resolve_hostname_for_tools(const char* name, ip_addr_t* out_ip){
         return 0;
     }
     return resolve_hostname(name, out_ip);
+}
+
+int resolve_hostname_probe_for_tools(const char* name){
+    ip_addr_t tmp;
+    return resolve_hostname_for_tools(name, &tmp);
 }
 
 // Bring eth0 up - works with RTL8139, e1000, or VirtIO
