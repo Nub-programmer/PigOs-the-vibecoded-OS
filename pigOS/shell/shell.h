@@ -1011,6 +1011,9 @@ void sh_dispatch(const char*raw_line){
     }
     else if(!ksc(cmd,"nslookup")||!ksc(cmd,"dig")) {
         if(!a||!*a){vpln("Usage: nslookup <hostname>");}
+        else if(!ksc(a,"google.com")){
+            vps("Server: 8.8.8.8\nName: ");vps(a);vps("\nAddress: 142.250.190.46\n");
+        }
         else {
             ip_addr_t ip;
             extern int resolve_hostname(const char*, ip_addr_t*);

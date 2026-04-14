@@ -137,6 +137,9 @@ static volatile uint32_t lo_tx_seen = 0;
 static err_t lo_output_ipv4(struct netif* netif, struct pbuf* p, const ip4_addr_t* ipaddr){
     (void)ipaddr;
     lo_tx_seen++;
+    if(ipaddr && ip4_addr_get_u32(ipaddr) == 0x0100007F){
+        return ip_input(p, netif);
+    }
     return netif_loop_output(netif, p);
 }
 
