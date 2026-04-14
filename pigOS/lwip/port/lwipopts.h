@@ -1,4 +1,5 @@
 #pragma once
+#define LWIP_DONT_PROVIDE_BYTEORDER_FUNCTIONS 1
 // pigOS lwIP configuration - minimal freestanding setup
 // No RTOS, no sockets, raw API only
 
