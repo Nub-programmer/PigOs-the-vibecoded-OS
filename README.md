@@ -141,13 +141,6 @@ Note: Requires real GPU hardware, won't work in QEMU
 - Crypto tools (pigcrypt, pighash, pigkey)
 ```
 
-## CREDITS
-```
-- larpshell: github.com/usr-undeleted/lash
-- VDM: from erofs project
-- lwIP: TCP/IP stack
-- stb: Sean Barrett's single-file libraries
-```
 
 ## VERSION
 ```
