@@ -80,7 +80,7 @@ print:
 
 ; Color codes
 splash1: db 0x1B,'[1;36m','  +==============================+',0x0D,0x0A,0
-splash2: db 0x1B,'[1;35m','  |      pigOS FLARE Boot       |',0x0D,0x0A,0
+splash2: db 0x1B,'[1;35m','  |      pigOS FLARE Boot by Nub      |',0x0D,0x0A,0
 splash3: db 0x1B,'[1;36m','  +==============================+',0x1B,'[0m',0x0D,0x0A,0
 cnt1: db 0x1B,'[1;33m','  Boot in: ',0
 cnt_digit: db '5',0
